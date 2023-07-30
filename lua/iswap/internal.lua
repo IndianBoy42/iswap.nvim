@@ -182,13 +182,8 @@ function M.get_list_nodes_at_cursor(winid, config, needs_cursor_node)
   return ret
 end
 
-local function node_or_range_get_text(node_or_range, bufnr)
-  local bufnr = bufnr or api.nvim_get_current_buf()
-  if not node_or_range then return {} end
-
-  -- We have to remember that end_col is end-exclusive
-  local start_row, start_col, end_row, end_col = ts.get_node_range(node_or_range)
-
+local get_range_text = function(range, buf)
+  local start_row, start_col, end_row, end_col = unpack(range)
   if end_col == 0 then
     if start_row == end_row then
       start_col = -1
@@ -197,90 +192,81 @@ local function node_or_range_get_text(node_or_range, bufnr)
     end_col = -1
     end_row = end_row - 1
   end
-  return api.nvim_buf_get_text(bufnr, start_row, start_col, end_row, end_col, {})
+  local lines = api.nvim_buf_get_text(buf, start_row, start_col, end_row, end_col, {})
+  return lines
+end
+
+local ns_id = api.nvim_create_namespace('ISwap')
+local function setmark(bufnr, pos, id, start)
+  api.nvim_buf_set_extmark(bufnr, ns_id, pos.line, pos.character, {
+    id = id,
+    right_gravity = not start,
+  })
+end
+local function node_to_lsp_range(node)
+  local start_line, start_col, end_line, end_col = ts.get_node_range(node)
+  local rtn = {}
+  rtn.start = { line = start_line, character = start_col }
+  rtn['end'] = { line = end_line, character = end_col }
+  return rtn
+end
+
+local function getmarks(bufnr)
+  local marks = {}
+  for _, mark in
+    ipairs(api.nvim_buf_get_extmarks(bufnr, ns_id, 0, -1, {
+      details = true,
+    }))
+  do
+    marks[mark[1]] = { mark[2], mark[3] }
+  end
+  return marks
 end
 
 -- node 'a' is the one the cursor is on
-
 function M.swap_ranges(a, b, should_move_cursor)
+  if not a or not b then return end
   local bufnr = api.nvim_get_current_buf()
   local winid = api.nvim_get_current_win()
+  local range1 = node_to_lsp_range(a)
+  local range2 = node_to_lsp_range(b)
 
-  local a_sr, a_sc = unpack(a)
-  local b_sr, b_sc = unpack(b)
-  local c_r, c_c
-
-  -- #64: note cursor position before swapping
   local cursor_delta
   if should_move_cursor then
     local cursor = api.nvim_win_get_cursor(winid)
-    c_r, c_c = unpack { cursor[1] - 1, cursor[2] }
-    cursor_delta = { c_r - a_sr, c_c - a_sc }
+    local c_r, c_c = cursor[1] - 1, cursor[2]
+    cursor_delta = { c_r - range1.start.line, c_c - range1.start.character }
   end
 
-  -- [1] first appearing node should be `a`, so swap for convenience
-  local HAS_SWAPPED = false
-  if not util.compare_position({ a_sr, a_sc }, { b_sr, b_sc }) then
-    a, b = b, a
-    HAS_SWAPPED = true
-  end
+  setmark(bufnr, range1.start, 1, true)
+  setmark(bufnr, range1['end'], 2, false)
+  setmark(bufnr, range2.start, 3, true)
+  setmark(bufnr, range2['end'], 4, false)
 
-  local a_sr, a_sc, a_er, a_ec = unpack(a)
-  local b_sr, b_sc, b_er, b_ec = unpack(b)
+  local text1 = get_range_text(a, bufnr)
+  local text2 = get_range_text(b, bufnr)
 
-  local text1 = node_or_range_get_text(a, bufnr)
-  local text2 = node_or_range_get_text(b, bufnr)
+  local edit1 = { range = range1, newText = table.concat(text2, '\n') }
+  local edit2 = { range = range2, newText = table.concat(text1, '\n') }
+  vim.lsp.util.apply_text_edits({ edit1, edit2 }, bufnr, 'utf-8')
 
-  ts_utils.swap_nodes(a, b, bufnr)
+  local marks = getmarks(bufnr)
 
-  local char_delta = 0
-  local line_delta = 0
-  if a_er < b_sr or (a_er == b_sr and a_ec <= b_sc) then line_delta = #text2 - #text1 end
-
-  if a_er == b_sr and a_ec <= b_sc then
-    if line_delta ~= 0 then
-      --- why?
-      --correction_after_line_change =  -b_sc
-      --text_now_before_range2 = #(text2[#text2])
-      --space_between_ranges = b_sc - a_ec
-      --char_delta = correction_after_line_change + text_now_before_range2 + space_between_ranges
-      --- Equivalent to:
-      char_delta = #text2[#text2] - a_ec
-
-      -- add a_sc if last line of range1 (now text2) does not start at 0
-      if a_sr == b_sr + line_delta then char_delta = char_delta + a_sc end
-    else
-      char_delta = #text2[#text2] - #text1[#text1]
-    end
-  end
-
-  -- now let a = first one (text2), b = second one (text1)
-  -- (opposite of what it used to be)
-
-  local _a_sr = a_sr
-  local _a_sc = a_sc
-  local _a_er = a_sr + #text2 - 1
-  local _a_ec = (#text2 > 1) and #text2[#text2] or a_sc + #text2[#text2]
-  local _b_sr = b_sr + line_delta
-  local _b_sc = b_sc + char_delta
-  local _b_er = b_sr + #text1 - 1
-  local _b_ec = (#text1 > 1) and #text1[#text1] or b_sc + #text1[#text1]
-
-  local a_data = { _a_sr, _a_sc, _a_er, _a_ec }
-  local b_data = { _b_sr, _b_sc, _b_er, _b_ec }
-
-  -- undo [1]'s swapping
-  if HAS_SWAPPED then
-    a_data, b_data = b_data, a_data
-  end
+  api.nvim_buf_clear_namespace(bufnr, ns_id, 0, -1)
 
   if should_move_cursor then
-    -- cursor offset depends on whether it is affected by the node start position
-    local c_to_c = (#text2 > 1 and cursor_delta[1] ~= 0) and c_c or b_data[2] + cursor_delta[2]
-    api.nvim_win_set_cursor(winid, { b_data[1] + 1 + cursor_delta[1], c_to_c })
+    vim.cmd("normal! m'")
+
+    api.nvim_win_set_cursor(
+      api.nvim_get_current_win(),
+      { marks[3][1] + 1 + cursor_delta[1], marks[3][2] + cursor_delta[2] }
+    )
   end
 
-  return { a_data, b_data }
+  return {
+    { marks[1][1], marks[1][2], marks[2][1], marks[2][2] },
+    { marks[3][1], marks[3][2], marks[4][1], marks[4][2] },
+  }
 end
 
 function M.move_range(children, cur_node_idx, a_idx, should_move_cursor)
