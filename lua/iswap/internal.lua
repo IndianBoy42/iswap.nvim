@@ -3,6 +3,7 @@ local ts = vim.treesitter
 local queries = require('nvim-treesitter.query')
 local util = require('iswap.util')
 local err = util.err
+local api = vim.api
 
 local ft_to_lang = require('nvim-treesitter.parsers').ft_to_lang
 
@@ -13,14 +14,14 @@ local M = {}
 
 --
 function M.find(cursor_range)
-  local bufnr = vim.api.nvim_get_current_buf()
+  local bufnr = api.nvim_get_current_buf()
   local sr, er = cursor_range[1], cursor_range[3]
   er = (er and (er + 1)) or (sr + 1)
   -- local root = ts_utils.get_root_for_position(unpack(cursor_range))
   -- NOTE: this root is freshly parsed, but this may not be the best way of getting a fresh parse
   --       see :h Query:iter_captures()
   local ft = vim.bo[bufnr].filetype
-  local root = vim.treesitter.get_parser(bufnr, ft_to_lang(ft)):parse()[1]:root()
+  local root = ts.get_parser(bufnr, ft_to_lang(ft)):parse()[1]:root()
   local q = queries.get_query(ft_to_lang(ft), 'iswap-list')
   -- TODO: initialize correctly so that :ISwap is not callable on unsupported
   -- languages, if that's possible.
@@ -73,7 +74,7 @@ end
 
 -- Returns ancestors from inside to outside
 function M.get_ancestors_at_cursor(only_current_line, config, needs_cursor_node)
-  local winid = vim.api.nvim_get_current_win()
+  local winid = api.nvim_get_current_win()
   local cursor_range = util.get_cursor_range(winid)
   local cur_node = ts.get_node {
     pos = { cursor_range[1], cursor_range[2] },
@@ -182,7 +183,7 @@ function M.get_list_nodes_at_cursor(winid, config, needs_cursor_node)
 end
 
 local function node_or_range_get_text(node_or_range, bufnr)
-  local bufnr = bufnr or vim.api.nvim_get_current_buf()
+  local bufnr = bufnr or api.nvim_get_current_buf()
   if not node_or_range then return {} end
 
   -- We have to remember that end_col is end-exclusive
@@ -196,14 +197,14 @@ local function node_or_range_get_text(node_or_range, bufnr)
     end_col = -1
     end_row = end_row - 1
   end
-  return vim.api.nvim_buf_get_text(bufnr, start_row, start_col, end_row, end_col, {})
+  return api.nvim_buf_get_text(bufnr, start_row, start_col, end_row, end_col, {})
 end
 
 -- node 'a' is the one the cursor is on
 
 function M.swap_ranges(a, b, should_move_cursor)
-  local bufnr = vim.api.nvim_get_current_buf()
-  local winid = vim.api.nvim_get_current_win()
+  local bufnr = api.nvim_get_current_buf()
+  local winid = api.nvim_get_current_win()
 
   local a_sr, a_sc = unpack(a)
   local b_sr, b_sc = unpack(b)
@@ -212,7 +213,7 @@ function M.swap_ranges(a, b, should_move_cursor)
   -- #64: note cursor position before swapping
   local cursor_delta
   if should_move_cursor then
-    local cursor = vim.api.nvim_win_get_cursor(winid)
+    local cursor = api.nvim_win_get_cursor(winid)
     c_r, c_c = unpack { cursor[1] - 1, cursor[2] }
     cursor_delta = { c_r - a_sr, c_c - a_sc }
   end
@@ -276,7 +277,7 @@ function M.swap_ranges(a, b, should_move_cursor)
   if should_move_cursor then
     -- cursor offset depends on whether it is affected by the node start position
     local c_to_c = (#text2 > 1 and cursor_delta[1] ~= 0) and c_c or b_data[2] + cursor_delta[2]
-    vim.api.nvim_win_set_cursor(winid, { b_data[1] + 1 + cursor_delta[1], c_to_c })
+    api.nvim_win_set_cursor(winid, { b_data[1] + 1 + cursor_delta[1], c_to_c })
   end
 
   return { a_data, b_data }
