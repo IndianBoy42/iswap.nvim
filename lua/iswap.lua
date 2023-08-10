@@ -15,13 +15,8 @@ end
 
 function M.evaluate_config(config, parent)
   parent = parent or M.config
-  return config and setmetatable(config, { __index = parent }) or parent
-end
-
-local last_iswap = nil
-local function repeat_set(cb)
-  last_iswap = cb
-  vim.cmd([[silent! call repeat#set("\<Plug>ISwapRepeat", -1)]])
+  config = config and setmetatable(config, { __index = parent }) or vim.deepcopy(parent)
+  return config
 end
 
 function M.init()
@@ -32,101 +27,87 @@ function M.init()
     },
   }
 
-  -- <Plug>ISwap will delay because it becomes <Plug>ISwapWith prefix sequence.
-  -- Use <Plug>ISwapNormal instead and etc for others
   local cmds = {
-    { 'ISwap', 'iswap', {}, 'ISwapNormal' },
-    { 'ISwapWith', 'iswap_with', { false } },
-    { 'ISwapWithRight', 'iswap_with', { 'right' } },
-    { 'ISwapWithLeft', 'iswap_with', { 'left' } },
-    { 'IMove', 'imove', {}, 'IMoveNormal' },
-    { 'IMoveWith', 'imove_with', { false } },
-    { 'IMoveWithRight', 'imove_with', { 'right' } },
-    { 'IMoveWithLeft', 'imove_with', { 'left' } },
-    { 'ISwapNode', 'iswap_node', {}, 'ISwapNodeNormal' },
-    { 'ISwapNodeWith', 'iswap_node_with', { false } },
-    { 'ISwapNodeWithRight', 'iswap_node_with', { 'right' } },
-    { 'ISwapNodeWithLeft', 'iswap_node_with', { 'left' } },
-    { 'IMoveNode', 'imove_node', {}, 'IMoveNodeNormal' },
-    { 'IMoveNodeWith', 'imove_node_with', { false } },
-    { 'IMoveNodeWithRight', 'imove_node_with', { 'right' } },
-    { 'IMoveNodeWithLeft', 'imove_node_with', { 'left' } },
+    { '', {} },
+    { 'Two', { direction = 2 } },
+    { 'Right', { direction = 'right' } },
+    { 'Left', { direction = 'left' } },
+    { 'List', { all_nodes = false } },
+    { 'ListTwo', { all_nodes = false, direction = 2 } },
+    { 'ListRight', { all_nodes = false, direction = 'right' } },
+    { 'ListLeft', { all_nodes = false, direction = 'left' } },
   }
-  local map = vim.keymap.set
-  for _, v in ipairs(cmds) do
-    local cmd, fn, arg, plug = unpack(v)
-    plug = plug or cmd
-    local cb = function() M[fn](unpack(arg)) end
-    -- vim.cmd('command ' .. cmd .. " lua require'iswap'." .. rhs)
-    vim.api.nvim_create_user_command(cmd, cb, {})
-    -- map('n', '<Plug>' .. plug, "<cmd>lua require'iswap'." .. rhs .. '<cr>')
-    map('n', '<Plug>' .. plug, cb, { desc = cmd })
+  for _, cmdkind in ipairs { 'Swap', 'Move' } do
+    local f = M[cmdkind:lower()]
+    for _, v in ipairs(cmds) do
+      local suff, opts = unpack(v)
+
+      local cmd = 'I' .. cmdkind .. suff
+      -- vim.cmd('command ' .. cmd .. " lua require'iswap'." .. rhs)
+      M.cmd(cmd, f, opts, { desc = cmd })
+      M.map({ 'n', 'x' }, '<Plug>(' .. cmd .. ')', f, opts, { desc = cmd })
+    end
+    -- map({ 'n', 'x' }, '<Plug>(' .. cmd .. ')', cb, { desc = cmd })
   end
-  map('n', '<Plug>ISwapRepeat', function()
-    if last_iswap then last_iswap() end
-  end)
 end
 
-function M.swap(direction, config)
+function M.mapping(fn, config)
+  config = config or {}
+  -- Everything outside of the operatorfunc should not get run on repeat
+  config.is_repeat = false
+  M.__operatorfunc = function()
+    fn(config)
+    config.is_repeat = true
+  end
+  vim.go.operatorfunc = "v:lua.require'iswap'.__operatorfunc"
+
+  config.mode = vim.api.nvim_get_mode().mode
+
+  if config.mode == 'n' and not config.use_operator then
+    return 'g@l'
+  else
+    return 'g@'
+  end
+end
+function M.feedkeys_mapping(fn, config) vim.api.nvim_feedkeys(M.mapping(fn, config), 'n', false) end
+M.rhs = {
+  swap = function(config) vim.api.nvim_feedkeys(M.mapping('swap', config), 'n', false) end,
+  move = function(config) vim.api.nvim_feedkeys(M.mapping('move', config), 'n', false) end,
+}
+
+function M.map(mode, lhs, fn, config, opts)
+  config = config or {}
+  opts = opts or {}
+  opts.expr = true
+  vim.keymap.set(mode, lhs, function() return M.mapping(fn, config) end, opts)
+end
+function M.cmd(cmd, fn, config, opts)
+  vim.api.nvim_create_user_command(cmd, function() vim.api.nvim_feedkeys(M.mapping(fn, config), 'n', false) end, opts)
+end
+
+function M.swap(config)
   config = M.evaluate_config(config)
   local bufnr = vim.api.nvim_get_current_buf()
 
-  choose(direction, config, function(children, b_idx, a_idx)
+  choose(config, function(children, b_idx, a_idx)
     local ranges = internal.swap_ranges_in_place(children, a_idx, b_idx, config.move_cursor)
 
     ui.flash_confirm(bufnr, ranges, config)
 
     return ranges
   end)
-
-  repeat_set(function() M.swap(direction, config) end)
 end
-function M.move(direction, config)
+function M.move(config)
   config = M.evaluate_config(config)
   local bufnr = vim.api.nvim_get_current_buf()
 
-  choose(direction, config, function(children, b_idx, a_idx)
+  choose(config, function(children, b_idx, a_idx)
     local ranges = internal.move_range_in_place(children, a_idx, b_idx, config.move_cursor)
 
     ui.flash_confirm(bufnr, ranges, config)
 
     return ranges
   end)
-
-  repeat_set(function() M.move(direction, config) end)
-end
-
-function M.iswap(config)
-  config = config or {}
-  config.all_nodes = false
-  M.swap(2, config)
-end
-
-function M.imove(config)
-  config = config or {}
-  config.all_nodes = false
-  M.move(2, config)
-end
-
-function M.iswap_node_with(direction, config) M.swap(direction, config) end
-
-function M.imove_node_with(direction, config) M.move(direction, config) end
-
-function M.iswap_node(config) M.swap(2, config) end
-
-function M.imove_node(config) M.move(2, config) end
-
-function M.imove_with(direction, config)
-  config = config or {}
-  config.all_nodes = false
-  M.move(direction, config)
-end
-
--- swap current with one other node
-function M.iswap_with(direction, config)
-  config = config or {}
-  config.all_nodes = false
-  M.swap(direction, config)
 end
 
 return M
