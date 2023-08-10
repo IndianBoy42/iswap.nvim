@@ -26,7 +26,9 @@ local function merge_nodes(children, cur_idx, last_idx)
   return util.join_lists { pre, { merged }, post }
 end
 
-local function choose(direction, config, callback)
+local last_list_index = 1
+local function choose(config, callback)
+  local direction = config.direction
   local bufnr = vim.api.nvim_get_current_buf()
   local winid = vim.api.nvim_get_current_win()
   local select_two_nodes = direction == 2
@@ -49,6 +51,8 @@ local function choose(direction, config, callback)
   lists = vim.tbl_map(function(list) return ranges(unpack(list)) end, lists)
   local parents = vim.tbl_map(function(list) return list[1] end, lists)
   local incremental_mode = false
+
+  if config.is_repeat then list_index = last_list_index > #lists and 1 or last_list_index end
 
   while true do
     iters = iters + 1
@@ -107,6 +111,7 @@ local function choose(direction, config, callback)
 
         local user_input, user_keys =
           ui.prompt(bufnr, config, children_and_parents, { { sr, sc }, { er, ec } }, times, parents_after)
+        -- TODO: select multiple initial nodes when select_two_nodes
         if not (type(user_input) == 'table' and #user_input >= 1) then
           if user_keys then
             local inp = user_keys[2] or user_keys[1]
@@ -150,11 +155,14 @@ local function choose(direction, config, callback)
       end
     end
 
-    if children[swap_node_idx] ~= nil then return callback(children, swap_node_idx, cur_idx) end
+    if children[swap_node_idx] ~= nil then
+      last_list_index = list_index
+      return callback(children, swap_node_idx, cur_idx)
+    end
     err('no node to swap with', config.debug)
 
     ::continue::
-    if list_index == 0 then list_index = #lists end
+    if list_index < 1 then list_index = #lists end
     if list_index > #lists then list_index = 1 end
   end
 end

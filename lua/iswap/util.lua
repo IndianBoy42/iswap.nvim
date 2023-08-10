@@ -58,8 +58,10 @@ local feedkeys = api.nvim_feedkeys
 local termcodes = api.nvim_replace_termcodes
 local function t(k) return termcodes(k, true, true, true) end
 local esc = t('<esc>')
-function M.get_cursor_range(winid)
-  if api.nvim_get_mode().mode:lower() == 'v' then
+local c_v = t('<c-v>')
+function M.get_cursor_range(winid, mode)
+  mode = mode or api.nvim_get_mode().mode
+  if mode == 'v' or mode == 'V' or mode == c_v then
     feedkeys(esc, 'ix', false)
     local start_row, start_col = unpack(api.nvim_buf_get_mark(0, '<'))
     local end_row, end_col = unpack(api.nvim_buf_get_mark(0, '>'))

@@ -125,6 +125,7 @@ function M.get_ancestors_at_cursor(only_current_line, config, needs_cursor_node)
     filter_ancestor(ancestor, config, cursor_range, lists)
   end
 
+  -- FIXME: has some bugs when moving multiple nodes
   local initial = 1
   local list_nodes = M.get_list_nodes_at_cursor(winid, config, needs_cursor_node)
   if list_nodes and #list_nodes >= 1 then
