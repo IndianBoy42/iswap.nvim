@@ -81,6 +81,7 @@ function M.get_ancestors_at_cursor(only_current_line, config, needs_cursor_node)
   }
   if cur_node == nil then return end
   local parent = cur_node -- :parent()
+  -- TODO: this is not perfect for selecting across comment nodes
   if parent:type() == 'comment' then
     cur_node = ts.get_node {
       pos = { cursor_range[3], cursor_range[4] },

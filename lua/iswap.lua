@@ -29,10 +29,12 @@ function M.init()
 
   local cmds = {
     { '', {} },
+    { 'With', { direction = 1 } },
     { 'Two', { direction = 2 } },
     { 'Right', { direction = 'right' } },
     { 'Left', { direction = 'left' } },
     { 'List', { all_nodes = false } },
+    { 'ListWith', { direction = 1 } },
     { 'ListTwo', { all_nodes = false, direction = 2 } },
     { 'ListRight', { all_nodes = false, direction = 'right' } },
     { 'ListLeft', { all_nodes = false, direction = 'left' } },
