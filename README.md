@@ -109,6 +109,7 @@ inspired by [hop.nvim](https://github.com/phaazon/hop.nvim) and
 ## TODO
 
 - Change defaults?
-- `ISwap[Node]With`: Visual mode selection to move/swap multiple nodes at once
 - `ISwap[Node]With`: Incremental mode while labels are visible (DONE: FIX BUGS)
 - Remove all mentions of `ts_utils`, clason is going to smite it out of existence
+- Multiselect nodes
+- Move subnodes within similar nodes

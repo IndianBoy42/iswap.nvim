@@ -42,7 +42,7 @@ local function choose(config, callback)
 
   local iters = 0
 
-  local lists, list_index
+  local lists, list_index = nil, 1
   if config.all_nodes then
     if type(config.all_nodes) == 'function' then
       lists, list_index = config.all_nodes(direction, config)

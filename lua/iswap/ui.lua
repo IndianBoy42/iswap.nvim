@@ -34,6 +34,7 @@ function M.prompt(bufnr, config, ranges, active_range, times, parents_after)
     if parents_after and parents_after > #keys then
       -- TODO: do something about this
       -- too many nodes, not enough keys, and I don't want to start using prefixes
+      -- filter by active_range or visible range
       err('Too many nodes but not enough keys!', true)
       return
     else

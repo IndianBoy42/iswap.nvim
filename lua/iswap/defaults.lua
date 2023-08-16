@@ -1,6 +1,7 @@
 local M = {}
 
-M.keys = 'asdfghjklqwertyuiopxcvbnm'
+local keystr = 'asdfghjklqwertyuiopzxcvbnm'
+M.keys = keystr .. keystr:upper()
 M.hl_grey = 'Comment'
 M.hl_snipe = 'Search'
 M.hl_parent = 'Substitute'
