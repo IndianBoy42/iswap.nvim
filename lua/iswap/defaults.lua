@@ -21,6 +21,8 @@ M.visual_select_list = true
 M.label_parents = true
 M.all_nodes = true
 M.move_cursor = false
+M.direction = 1 ---@type 1|2|'right'|'left'
 M.ignore_nodes = function(node) return node:type() ~= 'comment' end
+M.sticky = 'on_ctrl' ---@type false|'on_ctrl'|true|function
 
 return M

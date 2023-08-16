@@ -1,6 +1,10 @@
 local ts_utils = require('nvim-treesitter.ts_utils')
 local util = require('iswap.util')
 local err = util.err
+local t = function(k)
+  local termcodes = vim.api.nvim_replace_termcodes
+  return termcodes(k, true, true, true)
+end
 
 local M = {}
 
@@ -43,12 +47,19 @@ function M.prompt(bufnr, config, ranges, active_range, times, parents_after)
   end
 
   local imap = {}
+  local kmap = {}
   for i, range in ipairs(ranges) do
     local key = keys:sub(i, i)
     if key == '' then break end
     imap[key] = i
+    kmap[key] = key
+    local ckey = '<C-' .. (key == key:upper() and 'S-' .. key or key) .. '>'
+    imap[t(ckey)] = i
+    kmap[t(ckey)] = ckey
+
     local is_child = parents_after and (i <= parents_after)
     if is_child then ts_utils.highlight_range(range, bufnr, M.iswap_ns, config.hl_selection) end
+
     local start_row, start_col = unpack(range)
     vim.api.nvim_buf_set_extmark(bufnr, M.iswap_ns, start_row, start_col,
       {
@@ -63,12 +74,14 @@ function M.prompt(bufnr, config, ranges, active_range, times, parents_after)
   local ikeys = {}
   for _ = 1, times do
     local keystr = util.getchar_handler()
-    table.insert(ikeys, keystr)
-    if keystr == nil or imap[keystr] == nil then break end
+    if keystr == nil then break end
+    table.insert(ikeys, kmap[keystr])
+    if imap[keystr] == nil then break end
     table.insert(ires, imap[keystr])
     if parents_after and imap[keystr] > parents_after then break end
   end
   M.clear_namespace(bufnr)
+  vim.cmd('redraw!')
   return ires, ikeys
 end
 

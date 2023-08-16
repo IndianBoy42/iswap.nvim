@@ -26,6 +26,13 @@ local function merge_nodes(children, cur_idx, last_idx)
   return util.join_lists { pre, { merged }, post }
 end
 
+local function is_ctrl_key(k) return k:sub(1, 2) == '<C' end
+local sticky_modes = {
+  [false] = function() return false end,
+  [true] = function() return true end,
+  on_ctrl = function(_, k, _) return is_ctrl_key(k) end,
+}
+
 local last_list_index = 1
 local function choose(config, callback)
   local direction = config.direction
@@ -50,7 +57,8 @@ local function choose(config, callback)
   if not lists then return end
   lists = vim.tbl_map(function(list) return ranges(unpack(list)) end, lists)
   local parents = vim.tbl_map(function(list) return list[1] end, lists)
-  local incremental_mode = false
+  local incremental_mode, sticky_mode = false, config.sticky == true
+  local sticky_callback = type(config.sticky) == 'function' and config.sticky or sticky_modes[config.sticky]
 
   if config.is_repeat then list_index = last_list_index > #lists and 1 or last_list_index end
 
@@ -139,13 +147,19 @@ local function choose(config, callback)
         end
         if incremental_mode then return end
 
-        swap_node_idx = select_two_nodes and user_input[2] or user_input[1]
+        local a, b = user_input[1], user_input[2]
+        for i, k in ipairs(user_keys) do
+          local s = sticky_callback and sticky_callback(sticky_mode, k, i)
+          if s ~= nil then sticky_mode = s end
+        end
+
+        swap_node_idx = select_two_nodes and b or a
         if swap_node_idx > #children then
           list_index = swap_node_idx - #children
           goto insert_continue
         end
 
-        if select_two_nodes then cur_idx = user_input[1] end
+        if select_two_nodes then cur_idx = a end
       end
 
       ::insert_continue::
@@ -157,9 +171,11 @@ local function choose(config, callback)
 
     if children[swap_node_idx] ~= nil then
       last_list_index = list_index
-      return callback(children, swap_node_idx, cur_idx)
+      callback(children, swap_node_idx, cur_idx)
+      if not sticky_mode then return end
+    else
+      err('no node to swap with', config.debug)
     end
-    err('no node to swap with', config.debug)
 
     ::continue::
     if list_index < 1 then list_index = #lists end
