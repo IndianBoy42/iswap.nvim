@@ -1,4 +1,3 @@
-local ts_utils = require('nvim-treesitter.ts_utils')
 local util = require('iswap.util')
 local err = util.err
 local t = function(k)
@@ -59,7 +58,10 @@ function M.prompt(bufnr, config, ranges, active_range, times, parents_after)
     kmap[t(ckey)] = ckey
 
     local is_child = parents_after and (i <= parents_after)
-    if is_child then ts_utils.highlight_range(range, bufnr, M.iswap_ns, config.hl_selection) end
+    if is_child then
+      local start_row, start_col, end_row, end_col = unpack(range)
+      vim.highlight.range(bufnr, M.iswap_ns, config.hl_selection, { start_row, start_col }, { end_row, end_col })
+    end
 
     local start_row, start_col = unpack(range)
     vim.api.nvim_buf_set_extmark(bufnr, M.iswap_ns, start_row, start_col,
