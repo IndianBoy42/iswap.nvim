@@ -78,13 +78,17 @@ local function choose(config, callback)
 
     local function increment(dir)
       swap_node_idx = cur_idx + dir
-      if swap_node_idx > #children then swap_node_idx = 1 end
-      if swap_node_idx < 1 then swap_node_idx = #children end
+      while swap_node_idx > #children do
+        swap_node_idx = swap_node_idx - #children
+      end
+      while swap_node_idx < 1 do
+        swap_node_idx = swap_node_idx + #children
+      end
     end
     if direction == 'right' then
-      increment(1)
+      increment(vim.v.count1)
     elseif direction == 'left' then
-      increment(-1)
+      increment(-vim.v.count1)
     else
       local removed
       if not select_two_nodes then removed = table.remove(children, cur_idx) end
@@ -95,7 +99,7 @@ local function choose(config, callback)
         local function increment_swap(dir)
           table.insert(children, cur_idx, removed)
           incremental_mode = true
-          increment(dir)
+          increment(dir * vim.v.count1)
           local swapped = callback(children, swap_node_idx, cur_idx)
           children[cur_idx] = swapped[1]
           children[swap_node_idx] = swapped[2]
