@@ -95,12 +95,37 @@ require('iswap').setup{
 
   -- Keys that will use to expand the list/node that you are swapping within
   -- Choose a key that is not in the `keys` config otherwise it won't work
-  expand_key = 'z'
+  expand_key = ';'
+  shrink_key = ','
+
+  -- While labels are shown you can move the cursor node left/right using
+  -- these keys
+  incr_right_key = ')',
+  incr_left_key = '(',
+
+  sticky = '',
+  subnodes = '',
+
+  -- These options may not make sense to set globally but can be used for mappings
+
+  -- Switch between
+  -- 1 -> picking one node (the current node will be swapped)
+  -- 2 -> picking two nodes to swap
+  -- 'right'|'left' -> swapping left or right
+  direction = 1,
 
   -- Other default options you probably should not change:
   debug = nil,
   hl_grey_priority = '1000',
 }
+```
+
+Any of these configuration options can be overriden per invocation/mapping by passing them to the functions in the lua API:
+
+```lua
+local iswap = require'iswap'
+iswap.swap({ --[[Override config values]] })
+iswap.move({ --[[Override config values]] })
 ```
 
 inspired by [hop.nvim](https://github.com/phaazon/hop.nvim) and
