@@ -64,12 +64,12 @@ function M.prompt(bufnr, config, ranges, active_range, times, parents_after)
     end
 
     local start_row, start_col = unpack(range)
-    vim.api.nvim_buf_set_extmark(bufnr, M.iswap_ns, start_row, start_col,
-      {
-        virt_text = { { key, is_child and config.hl_snipe or config.hl_parent } },
-        virt_text_pos = is_child and config.label_snipe_style or config.label_parent_style,
-        hl_mode = "blend",
-      })
+    local style = is_child and config.label_snipe_style or config.label_parent_style
+    vim.api.nvim_buf_set_extmark(bufnr, M.iswap_ns, start_row, start_col, {
+      virt_text = { { key, is_child and config.hl_snipe or config.hl_parent } },
+      virt_text_pos = style,
+      hl_mode = style == 'inline' and 'replace' or 'blend',
+    })
   end
   vim.cmd('redraw')
 
