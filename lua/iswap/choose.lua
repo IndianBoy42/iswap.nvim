@@ -38,6 +38,7 @@ local function choose(config, callback)
   local direction = config.direction
   local bufnr = vim.api.nvim_get_current_buf()
   local winid = vim.api.nvim_get_current_win()
+  local cursor = vim.api.nvim_win_get_cursor(winid)
   local select_two_nodes = direction == 2
 
   local iters = 0
@@ -136,6 +137,7 @@ local function choose(config, callback)
               goto insert_continue
             end
             if not select_two_nodes then
+              -- TODO: incr but actually swap not move
               if inp == config.incr_left_key then
                 increment_swap(-1)
                 goto continue
@@ -184,6 +186,8 @@ local function choose(config, callback)
     ::continue::
     if list_index < 1 then list_index = #lists end
     if list_index > #lists then list_index = 1 end
+    vim.api.nvim_win_set_cursor(winid, cursor)
+    vim.cmd.redraw()
   end
 end
 
