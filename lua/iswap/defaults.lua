@@ -25,5 +25,6 @@ M.move_cursor = false
 M.direction = 1 ---@type 1|2|'right'|'left'
 M.ignore_nodes = function(node) return node:type() ~= 'comment' end
 M.sticky = 'on_ctrl' ---@type false|'on_ctrl'|true|function
+M.subnodes = false ---@type false|'on_ctrl'|true|function
 
 return M

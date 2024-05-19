@@ -103,7 +103,10 @@ require('iswap').setup{
   incr_right_key = ')',
   incr_left_key = '(',
 
+  -- true, false or 'on_ctrl'
+  -- In sticky mode the labels stay visible and you can keep doing swaps
   sticky = '',
+  -- In subnode mode
   subnodes = '',
 
   -- These options may not make sense to set globally but can be used for mappings

@@ -312,6 +312,73 @@ function M.swap_ranges_in_place(children, a_idx, b_idx, should_move_cursor)
   return swapped
 end
 
+local function field_of_node(node)
+  local parent = node:parent()
+  if parent == nil then return nil end
+  local i = 1
+  for child, field in parent:iter_children() do
+    if child == node then return field or i, parent end
+    i = i + 1
+  end
+end
+local function child_from_field(parent, field)
+  if type(field) == 'number' then
+    return parent:child(field)
+  else
+    return parent:field(field)
+  end
+end
+local function recursive_field_of_node_to(node, final)
+  local fields = {}
+  while true do
+    local field, parent = field_of_node(node)
+    if field == nil then return false, fields end
+    fields[#fields + 1] = field
+    if parent == final then return true, fields end
+  end
+end
+local function child_from_fields(parent, fields)
+  local child = parent
+  for _, field in pairs(fields) do
+    local ch = child_from_field(parent, field)
+    if ch == nil then
+      return child
+    else
+      child = ch
+    end
+  end
+  return child
+end
+
+function M.find_subnodes_of_nodes(children, subnode, cur_idx)
+  local tssubnode = ts.get_node { pos = subnode }
+  if not tssubnode then return children end
+
+  local curnode = children[cur_idx]
+  local tscurnode = ts.get_node { pos = curnode }
+  if not tscurnode then return children end
+
+  -- TODO: find f(curnode) == subnode
+  local fields = recursive_field_of_node_to(tssubnode, curnode)
+  if not fields then
+    err('Could not compute subnode address')
+    return children
+  end
+
+  local nodes = {}
+  for i, node in pairs(children) do
+    if i == cur_idx then
+      nodes[i] = { tssubnode:range() }
+    else
+      local chnode = ts.get_node { pos = node }
+      -- TODO: find f(chnode)
+      local sub = child_from_fields(chnode, fields)
+      nodes[i] = { sub:range() }
+    end
+  end
+  return nodes
+end
+
 function M.attach(bufnr, lang)
   -- TODO: Fill this with what you need to do when attaching to a buffer
 end

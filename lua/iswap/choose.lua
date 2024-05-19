@@ -32,6 +32,11 @@ local sticky_modes = {
   [true] = function() return true end,
   on_ctrl = function(_, k, _) return is_ctrl_key(k) end,
 }
+local subnode_modes = {
+  [false] = function() return false end,
+  [true] = function() return true end,
+  on_ctrl = function(k, i) return is_ctrl_key(k) end,
+}
 
 local last_list_index = 1
 local function choose(config, callback)
@@ -60,6 +65,9 @@ local function choose(config, callback)
   local parents = vim.tbl_map(function(list) return list[1] end, lists)
   local incremental_mode, sticky_mode = false, config.sticky == true
   local sticky_callback = type(config.sticky) == 'function' and config.sticky or sticky_modes[config.sticky]
+  local subnodes_callback = type(config.subnodes) == 'function' and config.subnodes or subnode_modes[config.subnodes]
+  local subnode = util.get_cursor_range(winid, config.mode)
+  if #subnode == 2 then subnode = nil end
 
   if config.is_repeat then list_index = last_list_index > #lists and 1 or last_list_index end
 
@@ -70,6 +78,12 @@ local function choose(config, callback)
     if last_idx then
       children = merge_nodes(children, cur_idx, last_idx)
       lists[list_index] = { parent, children, cur_idx }
+    end
+
+    if subnode then
+      -- TODO: map the children array down to corresponding subnodes
+      -- TODO: filter out the parents that are smaller than subnode
+      -- children = internal.find_subnodes_of_nodes(children, subnode, cur_idx)
     end
 
     local sr, sc, er, ec = unpack(parent)
@@ -159,13 +173,22 @@ local function choose(config, callback)
           if s ~= nil then sticky_mode = s end
         end
 
-        swap_node_idx = select_two_nodes and b or a
-        if swap_node_idx > #children then
-          list_index = swap_node_idx - #children
+        if (a and a > #children) or (b and b > #children) then
+          list_index = (a > #children and a or b) - #children
+          if not select_two_nodes then
+            local s = subnodes_callback
+              and subnodes_callback(a > #children and user_keys[1] or user_keys[2], list_index)
+            if s then subnode = removed end
+          end
           goto insert_continue
         end
 
-        if select_two_nodes then cur_idx = a end
+        if select_two_nodes then
+          swap_node_idx = b
+          cur_idx = a
+        else
+          swap_node_idx = a
+        end
       end
 
       ::insert_continue::
@@ -177,7 +200,7 @@ local function choose(config, callback)
 
     if children[swap_node_idx] ~= nil then
       last_list_index = list_index
-      callback(children, swap_node_idx, cur_idx)
+      callback(children, swap_node_idx, cur_idx, subnode)
       if not sticky_mode then return end
     else
       err('no node to swap with', config.debug)
